@@ -1,0 +1,70 @@
+/* 1) Paquete e imports */
+package analizador;
+import java_cup.runtime.*;
+
+/* 2) Código insertado en el parser */
+parser code {:
+  public static StringBuilder salida = new StringBuilder();
+  public void report_error(String msg, Object info) {
+    System.err.print("Error sintáctico");
+    if (info instanceof Symbol) {
+      Symbol s = (Symbol) info;
+      System.err.printf(" [%d,%d]", s.left+1, s.right+1);
+    }
+    System.err.println(": " + msg);
+  }
+:};  // ¡Ojo al punto y coma final!
+
+/* 3) Terminales y no terminales */
+terminal APERTURA, CIERRE, DIAGONAL, IGUAL;
+terminal String IDENT, ATTR_VALUE, TEXT;
+
+non terminal Documento, Elementos, Elemento, Atributos;
+
+/* 4) Gramática */
+
+/* Punto de entrada: una lista (posiblemente vacía) de elementos */
+Documento ::= Elementos ;
+
+/* Elementos: cero o más Elemento */
+Elementos ::=
+      /* vacío */
+    | Elementos Elemento
+    ;
+
+/* Elemento: texto encriptado o cualquier etiqueta (única regla para ambas) */
+Elemento ::=
+    /*  Texto simple, se encripta y se añade a 'salida' */
+    TEXT
+    {:
+      for (char c: $1.toCharArray()) {
+        if (Character.isLetter(c)) {
+          char base = Character.isUpperCase(c)? 'A':'a';
+          int val = c - base + 1;
+          salida.append(val).append(" ");
+        } else {
+          salida.append(c);
+        }
+      }
+      $$ = "";
+    :}
+  | /* Etiqueta (simple o con contenido) */
+    APERTURA IDENT Atributos CIERRE Elementos APERTURA DIAGONAL IDENT CIERRE
+    {:
+      // Verificación semántica de anidamiento
+      if (! $2.equals($8)) {
+        report_error("Etiqueta abierta <"+$2+"> cerrada con </"+$8+">", null);
+      }
+      // Generar HTML: si no hay Elementos internos, sale como <tag></tag>
+      salida.append("<").append($2).append($3).append(">");
+      salida.append($5);
+      salida.append("</").append($8).append(">");
+    :}
+  ;
+
+/* Atributos: lista vacía o recursiva */
+Atributos ::=
+      /* vacío */            {: $$ = ""; :}
+    | Atributos IDENT IGUAL ATTR_VALUE
+      {: $$ = $1 + " " + $2 + "=\"" + $4 + "\""; :}
+    ;
