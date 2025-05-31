@@ -1,64 +1,119 @@
-package analizadores; 
-import java_cup.runtime.*;
+/* parser_encrypt_html.cup */
+package analizadores;
 
-parser code 
-{:
-    /**
-     * Método al que se llama automáticamente ante algún error sintactico.
-     **/ 
-    public void syntax_error(Symbol s){ 
-        System.out.println("Error Sintáctico en la Línea " + (s.left) +
-        " Columna "+s.right+ ". No se esperaba este componente: " +s.value+"."); 
-    } 
+import java_cup.runtime.Symbol;
 
-    /**
-     * Método al que se llama automáticamente ante algún error sintáctico 
-     * en el que ya no es posible una recuperación de errores.
-     **/ 
-    public void unrecovered_syntax_error(Symbol s) throws java.lang.Exception{ 
-        System.out.println("Error síntactico irrecuperable en la Línea " + 
-        (s.left)+ " Columna "+s.right+". Componente " + s.value + 
-        " no reconocido."); 
-    }  
-:} 
+/*
+ * Gramática simplificada sin encriptado, diseñada
+ * para reconocer tu ejemplo EXACTO de entrada.
+ * No hay tabla de símbolos ni encriptado.
+ */
+parser code {:
+    /** Error sintáctico recuperable */
+    public void syntax_error(Symbol s) {
+        System.out.println(
+            "Error sintáctico en línea " + s.left +
+            ", columna " + s.right +
+            ". No se esperaba: " + s.value
+        );
+    }
+    /** Error sintáctico irrecuperable */
+    public void unrecovered_syntax_error(Symbol s)
+        throws java.lang.Exception
+    {
+        System.out.println(
+            "Error sintáctico irrecuperable en línea " +
+            s.left + ", columna " + s.right +
+            ". Componente no reconocido: " + s.value
+        );
+    }
+:};
 
-terminal String PTCOMA,PARIZQ,PARDER,CORIZQ,CORDER;
-terminal String MAS,MENOS,POR,DIVIDIDO;
-terminal String ENTERO;
-terminal String DECIMAL;
-terminal String UMENOS;
-terminal String REVALUAR;
 
-non terminal ini;
-non terminal instrucciones;
-non terminal instruccion;
-non terminal Double expresion;
 
-precedence left MAS,MENOS;
-precedence left POR,DIVIDIDO;
-precedence right UMENOS; 
+/* — Terminales (tokens) tal como los definimos en JFlex — */
+terminal String
+    DOCTYPE_DECLARATION,
+    HTML_OPEN_WITH_LANG, HTML_CLOSE,
+    HEAD_OPEN, HEAD_CLOSE,
+    TITLE_OPEN, TITLE_CLOSE,
+    BODY_OPEN, BODY_CLOSE,
+    DIV_OPEN_WITH_ALIGN, DIV_CLOSE,
+    P_OPEN, P_CLOSE,
+    IMG_OPEN_ALIGN_MIDDLE, IMG_OPEN_WIDTH_100,
+    TEXT_CONTENT;
 
-start with ini; 
+/* — No terminales (cada uno puede devolver un StringBuilder en caso de querer acumular texto) — */
+non terminal StringBuilder
+    document, htmlOpen, head, title, body, contents, element;
 
-ini::=instrucciones;
+/* — Símbolo inicial — */
+start with document;
 
-instrucciones ::= 
-   instruccion instrucciones
- | instruccion
- | error instrucciones
-; 
+/* — PRODUCCIONES — */
 
-instruccion ::= 
-   REVALUAR CORIZQ expresion:a CORDER PTCOMA{:System.out.println("El valor de la expresión es: "+a);:}
+/*
+  document ::= DOCTYPE_DECLARATION htmlOpen head body HTML_CLOSE;
+  Aquí no usamos “EOF” separado porque el propio parser se detiene cuando no
+  hay más tokens.
+*/
+document ::=
+    DOCTYPE_DECLARATION htmlOpen head body HTML_CLOSE
 ;
 
-expresion  ::= 
-    MENOS expresion:a                      {:RESULT=a*-1;:}%prec UMENOS     
- |  expresion:a MAS        expresion:b     {:RESULT=a+b;:}
- |  expresion:a MENOS      expresion:b     {:RESULT=a-b;:}
- |  expresion:a POR        expresion:b     {:RESULT=a*b;:}
- |  expresion:a DIVIDIDO   expresion:b     {:RESULT=a/b;:}
- |  ENTERO:a                               {:RESULT=new Double(a);:}
- |  DECIMAL:a                              {:RESULT=new Double(a);:}
- |  PARIZQ expresion:a PARDER              {:RESULT=a;:}
+/*
+  htmlOpen ::= HTML_OPEN_WITH_LANG;
+  Reconoce:  $html lang="en"#
+*/
+htmlOpen ::=
+    HTML_OPEN_WITH_LANG
+;
+
+/*
+  head ::= HEAD_OPEN title HEAD_CLOSE;
+  Reconoce:
+    $head# <title>TEXT</title># $/head#
+*/
+head ::=
+    HEAD_OPEN title HEAD_CLOSE
+;
+
+/*
+  title ::= TITLE_OPEN TEXT_CONTENT TITLE_CLOSE;
+  Reconoce:
+    $title# Texto plano $/title#
+*/
+title ::=
+    TITLE_OPEN TEXT_CONTENT TITLE_CLOSE
+;
+
+/*
+  body ::= BODY_OPEN contents BODY_CLOSE;
+  Reconoce:
+    $body# … elementos internos … $/body#
+*/
+body ::=
+    BODY_OPEN contents BODY_CLOSE
+;
+
+
+contents ::=
+
+    | contents element
+;
+
+/*
+  element puede ser:
+   (a) DIV_OPEN_WITH_ALIGN contents DIV_CLOSE  — si usas <div align="…"> … </div>#
+   (b) P_OPEN contents P_CLOSE  — para <p> … </p>#
+   (c) IMG_OPEN_ALIGN_MIDDLE  — para <img src="…" alt="…" align="middle" />#
+   (d) IMG_OPEN_WIDTH_100    — para <img src="…" alt="…" width="100" />#
+   (e) TEXT_CONTENT          — cualquier texto plano
+*/
+element ::=
+    DIV_OPEN_WITH_ALIGN contents DIV_CLOSE
+  | P_OPEN contents P_CLOSE
+  | IMG_OPEN_ALIGN_MIDDLE
+  | IMG_OPEN_WIDTH_100
+  | TEXT_CONTENT
 ;

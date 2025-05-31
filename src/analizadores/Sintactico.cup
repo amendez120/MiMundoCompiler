@@ -1,94 +1,119 @@
-/* parser_encrypt.cup */
+/* parser_encrypt_html.cup */
 package analizadores;
 
 import java_cup.runtime.Symbol;
-import java.util.Map;
-import java.util.HashMap;
 
 /*
- * Grammar para encriptar "HTML modificado".
- * Por cada token, llamamos a encrypt(lexico) y acumulamos en StringBuilder.
+ * Gramática simplificada sin encriptado, diseñada
+ * para reconocer tu ejemplo EXACTO de entrada.
+ * No hay tabla de símbolos ni encriptado.
  */
-action code {:
-    // Mapa de cifrado: carácter -> secuencia cifrada
-    private static final Map<String,String> ENC = new HashMap<>();
-    static {
-        ENC.put("$", "-");
-        ENC.put("#", "+");
-        // Agrega aquí más reglas según tu esquema
-    }
-
-    // Función de encriptado caracter a caracter
-    private static String encrypt(String s) {
-        StringBuilder out = new StringBuilder();
-        for (char c : s.toCharArray()) {
-            String m = ENC.get(String.valueOf(c));
-            out.append(m != null ? m : c);
-        }
-        return out.toString();
-    }
-:};
-
 parser code {:
-    public static void main(String[] args) throws Exception {
-        java.io.Reader in = new java.io.FileReader("entrada.txt");
-        Lexico lexer = new Lexico(in);
-        parser p = new parser(lexer);
-        Symbol result = p.parse();
-        // El valor de 'start' es un StringBuilder con el texto cifrado
-        StringBuilder encrypted = (StringBuilder) result.value;
-        System.out.println(encrypted.toString());
+    /** Error sintáctico recuperable */
+    public void syntax_error(Symbol s) {
+        System.out.println(
+            "Error sintáctico en línea " + s.left +
+            ", columna " + s.right +
+            ". No se esperaba: " + s.value
+        );
+    }
+    /** Error sintáctico irrecuperable */
+    public void unrecovered_syntax_error(Symbol s)
+        throws java.lang.Exception
+    {
+        System.out.println(
+            "Error sintáctico irrecuperable en línea " +
+            s.left + ", columna " + s.right +
+            ". Componente no reconocido: " + s.value
+        );
     }
 :};
 
-scan on;
 
-options {
-    parser = parser;
-    sym    = sym;
-}
 
-/**
- * Terminales definidos en tu JFlex (todos de tipo String en CUP)
- */
+/* — Terminales (tokens) tal como los definimos en JFlex — */
 terminal String
     DOCTYPE_DECLARATION,
-    HTML_OPEN, HTML_CLOSE,
+    HTML_OPEN_WITH_LANG, HTML_CLOSE,
     HEAD_OPEN, HEAD_CLOSE,
     TITLE_OPEN, TITLE_CLOSE,
     BODY_OPEN, BODY_CLOSE,
-    DIV_ALIGN_LEFT, DIV_ALIGN_RIGHT, DIV_ALIGN_CENTER, DIV_ALIGN_JUSTIFY, DIV_CLOSE,
-    IMG_ALIGN_MIDDLE, IMG_WIDTH_100,
+    DIV_OPEN_WITH_ALIGN, DIV_CLOSE,
     P_OPEN, P_CLOSE,
-    LANG_ATTR,
+    IMG_OPEN_ALIGN_MIDDLE, IMG_OPEN_WIDTH_100,
     TEXT_CONTENT;
 
-// No terminal que acumula el texto cifrado
-non terminal StringBuilder S;
+/* — No terminales (cada uno puede devolver un StringBuilder en caso de querer acumular texto) — */
+non terminal StringBuilder
+    document, htmlOpen, head, title, body, contents, element;
 
-// Indicamos que S es el start symbol
-start with S;
+/* — Símbolo inicial — */
+start with document;
 
-// Gramática: cada token se encripta y se concatena
-S ::= /* empty */                   {: RESULT = new StringBuilder(); :}
-    | S DOCTYPE_DECLARATION        {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S HTML_OPEN                  {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S HTML_CLOSE                 {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S HEAD_OPEN                  {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S HEAD_CLOSE                 {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S TITLE_OPEN                 {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S TITLE_CLOSE                {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S BODY_OPEN                  {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S BODY_CLOSE                 {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S DIV_ALIGN_LEFT             {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S DIV_ALIGN_RIGHT            {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S DIV_ALIGN_CENTER           {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S DIV_ALIGN_JUSTIFY          {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S DIV_CLOSE                  {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S IMG_ALIGN_MIDDLE           {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S IMG_WIDTH_100              {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S P_OPEN                     {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S P_CLOSE                    {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S LANG_ATTR                  {: $1.append(encrypt($2)); RESULT = $1; :}
-    | S TEXT_CONTENT               {: $1.append(encrypt($2)); RESULT = $1; :}
-    ;
+/* — PRODUCCIONES — */
+
+/*
+  document ::= DOCTYPE_DECLARATION htmlOpen head body HTML_CLOSE;
+  Aquí no usamos “EOF” separado porque el propio parser se detiene cuando no
+  hay más tokens.
+*/
+document ::=
+    DOCTYPE_DECLARATION htmlOpen head body HTML_CLOSE
+;
+
+/*
+  htmlOpen ::= HTML_OPEN_WITH_LANG;
+  Reconoce:  $html lang="en"#
+*/
+htmlOpen ::=
+    HTML_OPEN_WITH_LANG
+;
+
+/*
+  head ::= HEAD_OPEN title HEAD_CLOSE;
+  Reconoce:
+    $head# <title>TEXT</title># $/head#
+*/
+head ::=
+    HEAD_OPEN title HEAD_CLOSE
+;
+
+/*
+  title ::= TITLE_OPEN TEXT_CONTENT TITLE_CLOSE;
+  Reconoce:
+    $title# Texto plano $/title#
+*/
+title ::=
+    TITLE_OPEN TEXT_CONTENT TITLE_CLOSE
+;
+
+/*
+  body ::= BODY_OPEN contents BODY_CLOSE;
+  Reconoce:
+    $body# … elementos internos … $/body#
+*/
+body ::=
+    BODY_OPEN contents BODY_CLOSE
+;
+
+
+contents ::=
+
+    | contents element
+;
+
+/*
+  element puede ser:
+   (a) DIV_OPEN_WITH_ALIGN contents DIV_CLOSE  — si usas <div align="…"> … </div>#
+   (b) P_OPEN contents P_CLOSE  — para <p> … </p>#
+   (c) IMG_OPEN_ALIGN_MIDDLE  — para <img src="…" alt="…" align="middle" />#
+   (d) IMG_OPEN_WIDTH_100    — para <img src="…" alt="…" width="100" />#
+   (e) TEXT_CONTENT          — cualquier texto plano
+*/
+element ::=
+    DIV_OPEN_WITH_ALIGN contents DIV_CLOSE
+  | P_OPEN contents P_CLOSE
+  | IMG_OPEN_ALIGN_MIDDLE
+  | IMG_OPEN_WIDTH_100
+  | TEXT_CONTENT
+;
